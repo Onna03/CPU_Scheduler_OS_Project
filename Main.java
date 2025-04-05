@@ -1,9 +1,11 @@
 import javafx.application.Application;
+import javafx.beans.property.SimpleStringProperty;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.*;
+import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
@@ -19,11 +21,11 @@ public class Main extends Application {
     private Button addButton, startButton, resetButton;
     private TableView<Process> processTable;
     private Canvas ganttCanvas;
-    private Text avgWaitingText, avgTurnaroundText;
+    private Text avgWaitingText, avgTurnaroundText, waitingDetailsText, turnaroundDetailsText;
 
     private List<Process> processes = new ArrayList<>();
     private boolean isRunning = false;
-
+    private boolean quantumLocked = false;
     private int quantumValue = 2;
 
     public static void main(String[] args) {
@@ -34,34 +36,43 @@ public class Main extends Application {
     public void start(Stage stage) {
         stage.setTitle("CPU Scheduler");
 
-        // Create a region with a fixed height to add space above the scheduler dropdown
         Region spaceAboveScheduler = new Region();
-        spaceAboveScheduler.setPrefHeight(20);  // Set the height to control the space above the dropdown
+        spaceAboveScheduler.setPrefHeight(20);
 
-        // Top: Scheduler Choice
         Text pickScheduler = new Text("Choose Scheduling Algorithm: ");
         schedulerChoice = new ChoiceBox<>();
-        schedulerChoice.getItems().addAll("FCFS", "SJF (Non-Preemptive)", "SJF (Preemptive)", "Priority (Non-Preemptive)", "Priority (Preemptive)", "Round Robin");
+        schedulerChoice.getItems().addAll(
+                "FCFS",
+                "SJF (Non-Preemptive)",
+                "SJF (Preemptive)",
+                "Priority (Non-Preemptive)",
+                "Priority (Preemptive)",
+                "Round Robin"
+        );
 
-        // Arrange "Choose Scheduling Algorithm" and the dropdown horizontally
         HBox schedulerBox = new HBox(10, pickScheduler, schedulerChoice);
         schedulerBox.setPadding(new Insets(10));
 
-        // Input Fields
-        idField = new TextField(); idField.setPromptText("ID");
-        arrivalField = new TextField(); arrivalField.setPromptText("Arrival Time");
-        burstField = new TextField(); burstField.setPromptText("Burst Time");
+        idField = new TextField();
+        idField.setPromptText("ID");
 
-        priorityField = new TextField(); priorityField.setPromptText("Priority");
-        priorityField.setVisible(false); // Initially hidden
-        quantumField = new TextField(); quantumField.setPromptText("Quantum (RR)");
-        quantumField.setVisible(false); // Initially hidden
+        arrivalField = new TextField();
+        arrivalField.setPromptText("Arrival Time");
 
-        // Use HBox for input fields including both priority and quantum fields
+        burstField = new TextField();
+        burstField.setPromptText("Burst Time");
+
+        priorityField = new TextField();
+        priorityField.setPromptText("Priority");
+        priorityField.setVisible(false);
+
+        quantumField = new TextField();
+        quantumField.setPromptText("Quantum (RR)");
+        quantumField.setVisible(false);
+
         HBox inputBox = new HBox(10, idField, arrivalField, burstField, priorityField, quantumField);
         inputBox.setPadding(new Insets(10));
 
-        // Add, Start, Reset Buttons
         addButton = new Button("Add Process");
         startButton = new Button("Start");
         resetButton = new Button("Reset");
@@ -69,25 +80,65 @@ public class Main extends Application {
         HBox controlBox = new HBox(10, addButton, startButton, resetButton);
         controlBox.setPadding(new Insets(10));
 
-        // Gantt Chart Canvas
-        ganttCanvas = new Canvas(600, 100);
+        processTable = new TableView<>();
+        processTable.setPadding(new Insets(10));
+        processTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+
+        TableColumn<Process, String> idCol = new TableColumn<>("ID");
+        idCol.setCellValueFactory(new PropertyValueFactory<>("id"));
+
+        TableColumn<Process, Integer> arrivalCol = new TableColumn<>("Arrival Time");
+        arrivalCol.setCellValueFactory(new PropertyValueFactory<>("arrivalTime"));
+
+        TableColumn<Process, Integer> burstCol = new TableColumn<>("Burst Time");
+        burstCol.setCellValueFactory(new PropertyValueFactory<>("burstTime"));
+
+        TableColumn<Process, Integer> priorityCol = new TableColumn<>("Priority");
+        priorityCol.setCellValueFactory(new PropertyValueFactory<>("priority"));
+
+        TableColumn<Process, String> startCol = new TableColumn<>("Start Time");
+        startCol.setCellValueFactory(cellData -> new SimpleStringProperty(
+                cellData.getValue().getStartTime() == -1 ? "" : String.valueOf(cellData.getValue().getStartTime()))
+        );
+
+        TableColumn<Process, String> completionCol = new TableColumn<>("Completion Time");
+        completionCol.setCellValueFactory(cellData -> new SimpleStringProperty(
+                cellData.getValue().getCompletionTime() == -1 ? "" : String.valueOf(cellData.getValue().getCompletionTime()))
+        );
+
+        TableColumn<Process, String> turnaroundCol = new TableColumn<>("Turnaround Time");
+        turnaroundCol.setCellValueFactory(cellData -> new SimpleStringProperty(
+                cellData.getValue().getTurnaroundTime() == -1 ? "" : String.valueOf(cellData.getValue().getTurnaroundTime()))
+        );
+
+        TableColumn<Process, String> waitingCol = new TableColumn<>("Waiting Time");
+        waitingCol.setCellValueFactory(cellData -> new SimpleStringProperty(
+                cellData.getValue().getWaitingTime() == -1 ? "" : String.valueOf(cellData.getValue().getWaitingTime()))
+        );
+
+        processTable.getColumns().addAll(idCol, arrivalCol, burstCol, startCol, completionCol, turnaroundCol, waitingCol);
+
+        VBox tableBox = new VBox(processTable);
+        tableBox.setPadding(new Insets(10));
+
+        ganttCanvas = new Canvas(1500, 100);
         GraphicsContext gc = ganttCanvas.getGraphicsContext2D();
         gc.setFill(Color.WHITE);
-        gc.fillRect(0, 0, 600, 100);
+        gc.fillRect(0, 0, 1500, 100);
 
         avgWaitingText = new Text("Avg Waiting Time: ");
         avgTurnaroundText = new Text("Avg Turnaround Time: ");
+        waitingDetailsText = new Text("Waiting Details: ");
+        turnaroundDetailsText = new Text("Turnaround Details: ");
 
-        VBox bottomBox = new VBox(10, ganttCanvas, avgWaitingText, avgTurnaroundText);
+        VBox bottomBox = new VBox(10, ganttCanvas, avgWaitingText, waitingDetailsText, avgTurnaroundText, turnaroundDetailsText);
         bottomBox.setPadding(new Insets(10));
 
-        // Arrange the scheduler choice at the top, followed by the input box and control box
-        VBox root = new VBox(10, spaceAboveScheduler, schedulerBox, inputBox, controlBox, bottomBox);
-        Scene scene = new Scene(root, 800, 360);
+        VBox root = new VBox(10, spaceAboveScheduler, schedulerBox, inputBox, controlBox, tableBox, bottomBox);
+        Scene scene = new Scene(root, 1200, 600);
         stage.setScene(scene);
         stage.show();
 
-        // Event Handlers
         addButton.setOnAction(e -> addProcess());
         startButton.setOnAction(e -> {
             if (!isRunning) {
@@ -96,34 +147,37 @@ public class Main extends Application {
         });
         resetButton.setOnAction(e -> resetAll());
 
-        // Listener for scheduler choice to show/hide quantum field and priority field
         schedulerChoice.setOnAction(e -> {
-            togglePriorityField(); // Make sure the priority field visibility is toggled
-            toggleQuantumField();  // Make sure the quantum field visibility is toggled
+            togglePriorityField();
+            toggleQuantumField();
+
+            if (schedulerChoice.getValue().contains("Priority")) {
+                if (!processTable.getColumns().contains(priorityCol)) {
+                    processTable.getColumns().add(3, priorityCol);
+                }
+            } else {
+                processTable.getColumns().remove(priorityCol);
+            }
         });
     }
 
     private void toggleQuantumField() {
-        // If Round Robin is selected, make the quantum field visible
         if (schedulerChoice.getValue().equals("Round Robin")) {
             quantumField.setVisible(true);
-            priorityField.setVisible(false);  // Hide priority field
+            priorityField.setVisible(false);
         } else {
             quantumField.setVisible(false);
         }
     }
 
     private void togglePriorityField() {
-        // If "Priority (Preemptive)" or "Priority (Non-Preemptive)" is selected, make the priority field visible
-        if (schedulerChoice.getValue().equals("Priority (Preemptive)") || schedulerChoice.getValue().equals("Priority (Non-Preemptive)")) {
+        if (schedulerChoice.getValue().contains("Priority")) {
             priorityField.setVisible(true);
-            quantumField.setVisible(false);  // Hide quantum field
+            quantumField.setVisible(false);
         } else {
             priorityField.setVisible(false);
         }
     }
-
-    private boolean quantumLocked = false; // Ensure quantum is set before adding the first process
 
     private void addProcess() {
         try {
@@ -132,7 +186,6 @@ public class Main extends Application {
             int burst = Integer.parseInt(burstField.getText());
             int priority = priorityField.getText().isEmpty() ? Integer.MAX_VALUE : Integer.parseInt(priorityField.getText());
 
-            // Lock Quantum Value Before First Process is Added
             if (!quantumLocked && schedulerChoice.getValue().equals("Round Robin")) {
                 try {
                     quantumValue = Integer.parseInt(quantumField.getText().trim());
@@ -140,11 +193,12 @@ public class Main extends Application {
                     showAlert("Invalid quantum value. Please enter a valid integer.");
                     return;
                 }
-                quantumLocked = true; // Prevent future changes
+                quantumLocked = true;
             }
 
             Process p = new Process(id, arrival, burst, priority);
             processes.add(p);
+            processTable.getItems().add(p);
 
             clearInputs();
         } catch (NumberFormatException e) {
@@ -172,7 +226,6 @@ public class Main extends Application {
 
         Scheduler scheduler;
 
-        // Get quantum if needed
         if (choice.equals("Round Robin")) {
             try {
                 quantumValue = quantumField.getText().isEmpty() ? quantumValue : Integer.parseInt(quantumField.getText());
@@ -183,7 +236,6 @@ public class Main extends Application {
             }
         }
 
-        // Create scheduler based on user choice
         switch (choice) {
             case "SJF (Non-Preemptive)":
                 scheduler = new SJFNonPreemptiveScheduler();
@@ -209,22 +261,18 @@ public class Main extends Application {
                 return;
         }
 
-        // Clone the process list
         List<Process> processesCopy = new ArrayList<>();
         for (Process p : processes) {
             processesCopy.add(new Process(p.getId(), p.getArrivalTime(), p.getBurstTime(), p.getPriority()));
         }
 
-        // Run the scheduler
         scheduler.schedule(processesCopy);
 
-        // Retrieve Gantt chart entries from the scheduler if supported
         List<GanttEntry> ganttEntries = null;
         if (scheduler instanceof GanttProvider) {
             ganttEntries = ((GanttProvider) scheduler).getGanttChart();
         }
 
-        // Fallback: generate basic Gantt entries using start and burst time
         if (ganttEntries == null) {
             ganttEntries = new ArrayList<>();
             for (Process p : processesCopy) {
@@ -234,53 +282,69 @@ public class Main extends Application {
 
         drawGanttChart(ganttEntries);
         showAverages(processesCopy);
+        updateTableWithResults(processesCopy);
     }
-
 
     private void drawGanttChart(List<GanttEntry> ganttEntries) {
         GraphicsContext gc = ganttCanvas.getGraphicsContext2D();
         gc.clearRect(0, 0, ganttCanvas.getWidth(), ganttCanvas.getHeight());
 
         int currentX = 10;
-        int unitWidth = 30; // Width per time unit
-        int boxHeight = 50; // Box height
+        int unitWidth = 30;
+        int boxHeight = 50;
 
         for (GanttEntry entry : ganttEntries) {
             int width = (entry.getEndTime() - entry.getStartTime()) * unitWidth;
 
-            // Draw rounded rectangle
             gc.setFill(Color.LIGHTBLUE);
             gc.fillRoundRect(currentX, 30, width, boxHeight, 10, 10);
             gc.setStroke(Color.BLACK);
             gc.strokeRoundRect(currentX, 30, width, boxHeight, 10, 10);
 
-            // Centered text
             gc.setFill(Color.BLACK);
             gc.setFont(new Font("Arial", 14));
             gc.fillText(entry.getProcessId(), currentX + width / 2 - 10, 55);
 
-            // Time markers
             gc.setStroke(Color.BLACK);
             gc.strokeText(String.valueOf(entry.getStartTime()), currentX - 5, 80);
             currentX += width;
         }
 
-        // Draw last time marker
         if (!ganttEntries.isEmpty()) {
             GanttEntry lastEntry = ganttEntries.get(ganttEntries.size() - 1);
             gc.strokeText(String.valueOf(lastEntry.getEndTime()), currentX - 5, 80);
         }
     }
 
+    private void updateTableWithResults(List<Process> scheduled) {
+        processTable.getItems().clear();
+        processTable.getItems().addAll(scheduled);
+    }
+
     private void showAverages(List<Process> scheduled) {
         double totalWaiting = 0;
         double totalTurnaround = 0;
+        StringBuilder waitingSum = new StringBuilder();
+        StringBuilder turnaroundSum = new StringBuilder();
+
         int n = scheduled.size();
 
-        for (Process p : scheduled) {
+        for (int i = 0; i < n; i++) {
+            Process p = scheduled.get(i);
             totalWaiting += p.getWaitingTime();
             totalTurnaround += p.getTurnaroundTime();
+
+            waitingSum.append(p.getWaitingTime());
+            turnaroundSum.append(p.getTurnaroundTime());
+
+            if (i < n - 1) {
+                waitingSum.append(" + ");
+                turnaroundSum.append(" + ");
+            }
         }
+
+        waitingDetailsText.setText("Waiting Details: " + waitingSum + " = " + (int) totalWaiting);
+        turnaroundDetailsText.setText("Turnaround Details: " + turnaroundSum + " = " + (int) totalTurnaround);
 
         avgWaitingText.setText("Avg Waiting Time: " + String.format("%.2f", totalWaiting / n));
         avgTurnaroundText.setText("Avg Turnaround Time: " + String.format("%.2f", totalTurnaround / n));
@@ -288,11 +352,14 @@ public class Main extends Application {
 
     private void resetAll() {
         processes.clear();
+        processTable.getItems().clear();
         isRunning = false;
         avgWaitingText.setText("Avg Waiting Time: ");
         avgTurnaroundText.setText("Avg Turnaround Time: ");
+        waitingDetailsText.setText("Waiting Details: ");
+        turnaroundDetailsText.setText("Turnaround Details: ");
         GraphicsContext gc = ganttCanvas.getGraphicsContext2D();
-        gc.clearRect(0, 0, 600, 100);
+        gc.clearRect(0, 0, 1500, 100);
     }
 
     private void showAlert(String msg) {
