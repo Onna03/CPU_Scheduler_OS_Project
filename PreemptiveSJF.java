@@ -1,80 +1,76 @@
 import java.util.*;
 
 public class PreemptiveSJF implements Scheduler, GanttProvider {
-    private List<GanttEntry> ganttChart = new ArrayList<>();
+    private final List<GanttEntry> ganttChart = new ArrayList<>();
 
     @Override
     public void schedule(List<Process> processes) {
         int n = processes.size();
         int[] remaining = new int[n];
-        boolean[] started = new boolean[n];
-        int completed = 0;
-        int time = 0;
+        boolean[] finished = new boolean[n];
+        int time = 0, completed = 0;
 
-        // Initialize remaining burst time and process start time
         for (int i = 0; i < n; i++) {
             remaining[i] = processes.get(i).getBurstTime();
-            processes.get(i).setStartTime(-1);
         }
 
         Process current = null;
-        int start = -1;
+        int lastStart = -1;
 
-        // Preemptive SJF Scheduling
         while (completed < n) {
             int idx = -1;
-            int minRemaining = Integer.MAX_VALUE;
+            int min = Integer.MAX_VALUE;
 
-            // Find process with the shortest remaining burst time
             for (int i = 0; i < n; i++) {
                 Process p = processes.get(i);
-                if (p.getArrivalTime() <= time && remaining[i] > 0 && remaining[i] < minRemaining) {
-                    minRemaining = remaining[i];
+                if (!finished[i] && p.getArrivalTime() <= time && remaining[i] < min && remaining[i] > 0) {
+                    min = remaining[i];
                     idx = i;
                 }
             }
 
-            if (idx != -1) {
-                Process p = processes.get(idx);
-
-                // Mark start time for the first execution
-                if (p.getStartTime() == -1) {
-                    p.setStartTime(time);
-                }
-
-                // Handle context switch
-                if (current != p) {
-                    if (current != null && start < time) {
-                        ganttChart.add(new GanttEntry("P" + current.getId(), start, time));
-                    }
-                    current = p;
-                    start = time;
-                }
-
-                // Execute for one time unit
-                remaining[idx]--;
-                time++;
-
-                // If process finishes
-                if (remaining[idx] == 0) {
-                    p.setCompletionTime(time);
-                    p.setTurnaroundTime(time - p.getArrivalTime());
-                    p.setWaitingTime(p.getTurnaroundTime() - p.getBurstTime());
-                    completed++;
-                }
-            } else {
-                // If no process is available, mark idle time
-                if (current != null && start < time) {
-                    ganttChart.add(new GanttEntry("P" + current.getId(), start, time));
+            if (idx == -1) {
+                // Idle time
+                if (current != null && lastStart < time) {
+                    ganttChart.add(new GanttEntry("P" + current.getId(), lastStart, time));
                     current = null;
                 }
                 time++;
+                continue;
+            }
+
+            Process p = processes.get(idx);
+
+            if (current != p) {
+                if (current != null && lastStart < time) {
+                    ganttChart.add(new GanttEntry("P" + current.getId(), lastStart, time));
+                }
+                current = p;
+                lastStart = time;
+            }
+
+            // Execute for 1 unit
+            remaining[idx]--;
+            time++;
+
+            // First time executing
+            if (p.getStartTime() == -1) {
+                p.setStartTime(time - 1);
+            }
+
+            if (remaining[idx] == 0) {
+                finished[idx] = true;
+                completed++;
+
+                p.setCompletionTime(time);
+                p.setTurnaroundTime(time - p.getArrivalTime());
+                p.setWaitingTime(p.getTurnaroundTime() - p.getBurstTime());
             }
         }
 
-        // Finalize the last process entry in the Gantt chart
-        if (current != null && start < time) {
-            ganttChart.add(new GanttEntry("P" + current.getId(), start, time));
+        // Close off last Gantt entry
+        if (current != null && lastStart < time) {
+            ganttChart.add(new GanttEntry("P" + current.getId(), lastStart, time));
         }
     }
 
@@ -83,3 +79,4 @@ public class PreemptiveSJF implements Scheduler, GanttProvider {
         return ganttChart;
     }
 }
+
