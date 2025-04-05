@@ -5,68 +5,68 @@ public class PreemptivePriority implements Scheduler, GanttProvider {
 
     @Override
     public void schedule(List<Process> processes) {
-        int n = processes.size(), completed = 0, time = 0;
-        int[] remaining = new int[n];
+        int n = processes.size();
+        int[] remainingBurst = new int[n];
         boolean[] started = new boolean[n];
 
-        for (int i = 0; i < n; i++) remaining[i] = processes.get(i).getBurstTime();
+        for (int i = 0; i < n; i++) {
+            remainingBurst[i] = processes.get(i).getBurstTime();
+        }
 
-        Process current = null;
-        int start = -1;
+        int completed = 0;
+        int time = 0;
+        Process currentProcess = null;
+        int executionStart = -1;
 
         while (completed < n) {
-            int idx = -1, highestPriority = Integer.MAX_VALUE;
+            int minPriority = Integer.MAX_VALUE;
+            int selectedIndex = -1;
 
-            // Check for available processes with the highest priority
             for (int i = 0; i < n; i++) {
                 Process p = processes.get(i);
-                if (p.getArrivalTime() <= time && remaining[i] > 0 && p.getPriority() < highestPriority) {
-                    highestPriority = p.getPriority();
-                    idx = i;
+                if (p.getArrivalTime() <= time && remainingBurst[i] > 0 && p.getPriority() < minPriority) {
+                    minPriority = p.getPriority();
+                    selectedIndex = i;
                 }
             }
 
-            if (idx != -1) {
-                Process p = processes.get(idx);
+            if (selectedIndex != -1) {
+                Process selectedProcess = processes.get(selectedIndex);
 
-                // Start time handling for the process
-                if (!started[idx]) {
-                    p.setStartTime(time);
-                    started[idx] = true;
+                if (!started[selectedIndex]) {
+                    selectedProcess.setStartTime(time);
+                    started[selectedIndex] = true;
                 }
 
-                // Process switch logic for preemption
-                if (current != p) {
-                    if (current != null && start != -1 && start < time) {
-                        ganttChart.add(new GanttEntry("P" + current.getId(), start, time));
+                if (currentProcess != selectedProcess) {
+                    if (currentProcess != null && executionStart != -1 && executionStart < time) {
+                        ganttChart.add(new GanttEntry("P" + currentProcess.getId(), executionStart, time));
                     }
-                    current = p;
-                    start = time;
+                    currentProcess = selectedProcess;
+                    executionStart = time;
                 }
 
-                // Execute the process
-                remaining[idx]--;
+                remainingBurst[selectedIndex]--;
                 time++;
 
-                if (remaining[idx] == 0) {
-                    p.setCompletionTime(time);
-                    p.setTurnaroundTime(time - p.getArrivalTime());
-                    p.setWaitingTime(p.getTurnaroundTime() - p.getBurstTime());
+                if (remainingBurst[selectedIndex] == 0) {
+                    selectedProcess.setCompletionTime(time);
+                    selectedProcess.setTurnaroundTime(time - selectedProcess.getArrivalTime());
+                    selectedProcess.setWaitingTime(selectedProcess.getTurnaroundTime() - selectedProcess.getBurstTime());
                     completed++;
                 }
+
             } else {
-                // Idle time: Add an entry for when no process is ready
-                if (current != null && start != -1 && start < time) {
-                    ganttChart.add(new GanttEntry("P" + current.getId(), start, time));
-                    current = null;
+                if (currentProcess != null && executionStart != -1 && executionStart < time) {
+                    ganttChart.add(new GanttEntry("P" + currentProcess.getId(), executionStart, time));
+                    currentProcess = null;
                 }
                 time++;
             }
         }
 
-        // Final Gantt entry for the last process
-        if (current != null && start != -1 && start < time) {
-            ganttChart.add(new GanttEntry("P" + current.getId(), start, time));
+        if (currentProcess != null && executionStart != -1 && executionStart < time) {
+            ganttChart.add(new GanttEntry("P" + currentProcess.getId(), executionStart, time));
         }
     }
 
