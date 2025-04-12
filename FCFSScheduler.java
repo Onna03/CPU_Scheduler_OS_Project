@@ -4,10 +4,7 @@ public class FCFSScheduler implements Scheduler, GanttProvider {
     private List<GanttEntry> ganttChart = new ArrayList<>();
     private int totalWaitingTime = 0;
     private int totalTurnaroundTime = 0;
-
-    // Declare readyQueue here
-    private Queue<Process> readyQueue = new LinkedList<>();
-
+    
     @Override
     public void schedule(List<Process> processes) {
         // Sort processes by arrival time
@@ -90,21 +87,16 @@ public class FCFSScheduler implements Scheduler, GanttProvider {
 
                 currentProcess.setTurnaroundTime(turnaroundTime);
                 currentProcess.setWaitingTime(waitingTime);
-
-                // ⚠️ Return process this time (to update chart), then null in next call
+                
                 Process finished = currentProcess;
                 currentProcess = null;
-                return finished; // still return it for Gantt rendering
+                return finished; 
             }
         }
 
         return currentProcess;
     }
-
-
-
-
-
+    
     @Override
     public List<GanttEntry> getGanttChart() {
         return ganttChart;
