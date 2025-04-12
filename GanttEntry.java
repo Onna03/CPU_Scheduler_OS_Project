@@ -20,4 +20,8 @@ public class GanttEntry {
     public int getEndTime() {
         return endTime;
     }
+
+    public void setEndTime(int i) {
+        this.endTime= i;
+    }
 }
