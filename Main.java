@@ -194,7 +194,7 @@ public class Main extends Application {
 
         KeyFrame keyFrame = new KeyFrame(Duration.seconds(1), e -> {
             // Schedule step (get process to run at this time)
-            Process currentProcess = scheduler.scheduleStep(processesCopy, timeStep[0], liveGantt);
+             scheduler.scheduleStep(processesCopy, timeStep[0], liveGantt);
             // Always update chart, even for the last time unit
             Platform.runLater(() -> drawGanttChart(liveGantt));
             //  Always refresh the process table
