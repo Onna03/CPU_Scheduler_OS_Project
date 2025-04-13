@@ -34,7 +34,7 @@ public class Main extends Application {
     private Timeline liveTimeline;
 
     private int quantumValue = 2;
-    
+
     public static void main(String[] args) {
         launch(args);
     }
@@ -193,9 +193,11 @@ public class Main extends Application {
         final int[] timeStep = {0};
 
         KeyFrame keyFrame = new KeyFrame(Duration.seconds(1), e -> {
+            // Schedule step (get process to run at this time)
+            Process currentProcess = scheduler.scheduleStep(processesCopy, timeStep[0], liveGantt);
             // Always update chart, even for the last time unit
             Platform.runLater(() -> drawGanttChart(liveGantt));
-            // Always refresh the process table
+            //  Always refresh the process table
 
             Platform.runLater(() -> {
                 processTable.getItems().clear();
@@ -216,7 +218,7 @@ public class Main extends Application {
         liveTimeline.getKeyFrames().add(keyFrame);
         liveTimeline.play();
     }
-    
+
     public static void drawGanttChart(List<GanttEntry> ganttEntries) { // <1, 1 , 2>,
         GraphicsContext gc = ganttCanvas.getGraphicsContext2D();
         gc.clearRect(0, 0, ganttCanvas.getWidth(), ganttCanvas.getHeight());
