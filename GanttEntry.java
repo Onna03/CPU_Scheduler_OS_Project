@@ -1,3 +1,4 @@
+package com.example.cpu_scheduler;
 public class GanttEntry {
     private String processId;
     private int startTime;
@@ -19,5 +20,9 @@ public class GanttEntry {
 
     public int getEndTime() {
         return endTime;
+    }
+
+    public void setEndTime(int i) {
+        this.endTime= i;
     }
 }
